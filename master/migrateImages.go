@@ -3,10 +3,30 @@ package master
 import (
 	"context"
 	"fmt"
+	"github.com/cheggaaa/pb/v3"
 	"github.com/containerd/containerd"
 	"github.com/docker/docker/client"
+	"io"
 	"log"
+	"time"
 )
+
+// 定义一个包装了进度条的io.Reader
+type progressReader struct {
+	io.Reader
+	bar *pb.ProgressBar
+}
+
+func (r *progressReader) Read(p []byte) (int, error) {
+	n, err := r.Reader.Read(p)
+	if r.bar.Current()+int64(n) <= r.bar.Total() {
+		r.bar.Add(n)
+	} else {
+		// 如果超出，则设置进度条为100%
+		r.bar.SetTotal(r.bar.Total())
+	}
+	return n, err
+}
 
 // MigrateImage migrates an image from a source runtime to a destination runtime.
 func MigrateImage(srcType string, dstType string, imageName, namspace string) error {
@@ -27,21 +47,32 @@ func MigrateImage(srcType string, dstType string, imageName, namspace string) er
 		if err != nil {
 			return fmt.Errorf("failed to inspect Docker image: %v", err)
 		}
+
 		tarStream, err := dockerCli.ImageSave(context.Background(), []string{img.ID})
 		if err != nil {
 			return fmt.Errorf("failed to save Docker image: %v", err)
 		}
 		defer tarStream.Close()
+
+		bar := pb.New(int(img.VirtualSize)).Set(pb.Bytes, true).SetWidth(80)
+		bar.Start()
+		startTime := time.Now()
+
 		switch dstType {
 		case "containerd":
+			progressReader := &progressReader{Reader: tarStream, bar: bar}
+
 			ctx := context.Background()
 			importOpts := []containerd.ImportOpt{containerd.WithIndexName("docker.io/library/" + imageName)}
-			_, err := containerdCli.Import(ctx, tarStream, importOpts...)
 
+			_, err := containerdCli.Import(ctx, progressReader, importOpts...)
 			if err != nil {
 				return fmt.Errorf("failed to import image to Containerd: %v", err)
 			}
-			log.Printf("Image %s migrated from Docker to Containerd successfully.\n", imageName)
+			bar.Finish()
+			elapsedTime := time.Since(startTime)
+			log.Printf("Image %s migrated from Docker to Containerd successfully in %s.\n", imageName, elapsedTime)
+
 		case "other-runtime":
 			log.Printf("Migration to %s is not supported yet.\n", dstType)
 		default:
