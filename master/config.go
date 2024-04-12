@@ -27,6 +27,9 @@ const (
 )
 
 var (
+	SrcType   string
+	DstType   string
+	Namespace string
 	Nodes     []string
 	SSHConfig sshutil.SSH
 	message   string
