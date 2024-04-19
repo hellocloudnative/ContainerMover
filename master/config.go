@@ -27,13 +27,16 @@ const (
 )
 
 var (
-	SrcType   string
-	DstType   string
-	Namespace string
-	AllImages bool
-	Nodes     []string
-	SSHConfig sshutil.SSH
-	message   string
+	Images        bool
+	ImageNames    []string
+	ImageListFile string
+	SrcType       string
+	DstType       string
+	Namespace     string
+	AllImages     bool
+	Nodes         []string
+	SSHConfig     sshutil.SSH
+	message       string
 )
 
 const defaultConfigPath = "/.containerMover"
