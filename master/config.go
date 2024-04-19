@@ -27,8 +27,6 @@ const (
 )
 
 var (
-	Images        bool
-	ImageNames    []string
 	ImageListFile string
 	SrcType       string
 	DstType       string
