@@ -17,6 +17,9 @@ var exampleInit = `
 
 	# containerd migrate to docker
     containerMover migrate images --src-type containerd --dst-type docker --namespace C
+
+	# migrate all images
+	containerMover migrate images --src-type docker --dst-type containerd --namespace  --all
 `
 var migrateImagesCmd = &cobra.Command{
 	Use:   "migrate images [flags] [image]",
@@ -25,24 +28,37 @@ var migrateImagesCmd = &cobra.Command{
 The source and destination types can be "docker", "containerd", etc.`,
 	Example: "containerMover migrate images --src-type docker --dst-type containerd myimage:latest",
 	Run: func(cmd *cobra.Command, args []string) {
-		if master.SrcType == "" || master.DstType == "" || master.Namespace == "" || len(args) == 0 {
+		if master.SrcType == "" || master.DstType == "" || master.Namespace == "" || (args[len(args)-1] == "images" && master.AllImages == false) {
 			cmd.Help()
 			os.Exit(1)
 		}
+		if master.AllImages == true {
+			fmt.Println("Migrating all images from " + master.SrcType + " to " + master.DstType + " in namespace " + master.Namespace)
+			if err := master.MigrateAllImages(master.SrcType, master.DstType, master.Namespace); err != nil {
+				logger.Error("Migration failed: %v", err)
+				os.Exit(1)
+			}
+			fmt.Println("Migration completed ")
+			return
+		}
 		// 执行迁移操作
 		imageName := args[len(args)-1]
+
 		if err := master.MigrateImage(master.SrcType, master.DstType, imageName, master.Namespace); err != nil {
 			logger.Error("Migration failed: %v", err)
 			os.Exit(1)
 		}
-		// 迁移成功
-		fmt.Printf("Image %s migrated from %s to %s successfully.\n", imageName, master.SrcType, master.DstType)
+
+		fmt.Println("Migration completed ")
 	},
 }
 
 func init() {
-	rootCmd.AddCommand(migrateImagesCmd)
+	if rootCmd != nil {
+		rootCmd.AddCommand(migrateImagesCmd)
+	}
 	migrateImagesCmd.Flags().StringVar(&master.SrcType, "src-type", "docker", "The source container runtime type")
 	migrateImagesCmd.Flags().StringVar(&master.DstType, "dst-type", "containerd", "The destination container runtime type")
 	migrateImagesCmd.Flags().StringVar(&master.Namespace, "namespace", "k8s.io", "The namespace where the container images are located")
+	migrateImagesCmd.Flags().BoolVarP(&master.AllImages, "all", "A", false, "Migrate all images in the namespace")
 }

@@ -1,17 +1,16 @@
 package master
 
 import (
+	"ContainerMover/pkg/logger"
 	"context"
 	"fmt"
 	"github.com/cheggaaa/pb/v3"
 	"github.com/containerd/containerd"
 	"github.com/docker/docker/client"
 	"io"
-	"log"
 	"time"
 )
 
-// 定义一个包装了进度条的io.Reader
 type progressReader struct {
 	io.Reader
 	bar *pb.ProgressBar
@@ -22,7 +21,6 @@ func (r *progressReader) Read(p []byte) (int, error) {
 	if r.bar.Current()+int64(n) <= r.bar.Total() {
 		r.bar.Add(n)
 	} else {
-		// 如果超出，则设置进度条为100%
 		r.bar.SetTotal(r.bar.Total())
 	}
 	return n, err
@@ -34,7 +32,6 @@ func MigrateImage(srcType string, dstType string, imageName, namspace string) er
 	if err != nil {
 		return fmt.Errorf("failed to create Docker client: %v", err)
 	}
-
 	containerdCli, err := containerd.New("/run/containerd/containerd.sock", containerd.WithDefaultNamespace(namspace))
 	if err != nil {
 		return fmt.Errorf("failed to create Containerd client: %v", err)
@@ -47,7 +44,6 @@ func MigrateImage(srcType string, dstType string, imageName, namspace string) er
 		if err != nil {
 			return fmt.Errorf("failed to inspect Docker image: %v", err)
 		}
-
 		tarStream, err := dockerCli.ImageSave(context.Background(), []string{img.ID})
 		if err != nil {
 			return fmt.Errorf("failed to save Docker image: %v", err)
@@ -57,13 +53,12 @@ func MigrateImage(srcType string, dstType string, imageName, namspace string) er
 		bar := pb.New(int(img.VirtualSize)).Set(pb.Bytes, true).SetWidth(80)
 		bar.Start()
 		startTime := time.Now()
-
 		switch dstType {
 		case "containerd":
 			progressReader := &progressReader{Reader: tarStream, bar: bar}
 
 			ctx := context.Background()
-			importOpts := []containerd.ImportOpt{containerd.WithIndexName("docker.io/library/" + imageName)}
+			importOpts := []containerd.ImportOpt{containerd.WithIndexName(imageName)}
 
 			_, err := containerdCli.Import(ctx, progressReader, importOpts...)
 			if err != nil {
@@ -71,14 +66,13 @@ func MigrateImage(srcType string, dstType string, imageName, namspace string) er
 			}
 			bar.Finish()
 			elapsedTime := time.Since(startTime)
-			log.Printf("Image %s migrated from Docker to Containerd successfully in %s.\n", imageName, elapsedTime)
+			logger.Info("Image %s migrated from Docker to Containerd successfully in %s.", imageName, elapsedTime)
 
 		case "other-runtime":
-			log.Printf("Migration to %s is not supported yet.\n", dstType)
+			fmt.Printf("Migration to %s is not supported yet.\n", dstType)
 		default:
 			return fmt.Errorf("unsupported destination runtime: %s", dstType)
 		}
-
 	default:
 		return fmt.Errorf("unsupported source runtime: %s", srcType)
 	}

@@ -30,6 +30,7 @@ var (
 	SrcType   string
 	DstType   string
 	Namespace string
+	AllImages bool
 	Nodes     []string
 	SSHConfig sshutil.SSH
 	message   string
