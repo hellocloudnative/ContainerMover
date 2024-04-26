@@ -66,7 +66,7 @@ func MigrateImage(srcType string, dstType string, imageName, namspace string) er
 			}
 			bar.Finish()
 			elapsedTime := time.Since(startTime)
-			logger.Info("Image %s migrated from Docker to Containerd successfully in %s.", imageName, elapsedTime)
+			logger.Info("Image %s migrated from Docker to Containerd  namspace %s successfully in %s.", imageName, namspace, elapsedTime)
 
 		case "other-runtime":
 			fmt.Printf("Migration to %s is not supported yet.\n", dstType)
