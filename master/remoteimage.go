@@ -1,8 +1,10 @@
 package master
 
 import (
+	"ContainerMover/pkg/logger"
 	"context"
 	"fmt"
+	"github.com/cheggaaa/pb/v3"
 	"github.com/docker/docker/client"
 	"github.com/pkg/sftp"
 	"golang.org/x/crypto/ssh"
@@ -57,6 +59,7 @@ func MigrateImageRemotely(srcType, dstType, namespace, imageName string, host, u
 			if err := sftpUploadFile(sftpClient, tarPath, remotePath); err != nil {
 				return err
 			}
+
 			if err := sshRunCommand(sshClient, fmt.Sprintf("ctr --namespace %s images import %s", namespace, remotePath)); err != nil {
 				return err
 			}
@@ -93,11 +96,15 @@ func createDockerImageTar(dockerClient *client.Client, imageName string) (string
 		return "", fmt.Errorf("failed to save image %s: %v", imageName, err)
 	}
 	defer tarStream.Close()
-
-	if _, err := io.Copy(tarFile, tarStream); err != nil {
+	logger.Info("Uploading image  %s to remote server...", imageName)
+	// 创建进度条
+	bar := pb.New(int(img.VirtualSize)).Set(pb.Bytes, true).SetWidth(80)
+	bar.Start()
+	progressReader := &progressReader{Reader: tarStream, bar: bar}
+	if _, err := io.Copy(tarFile, progressReader); err != nil {
 		return "", fmt.Errorf("failed to write tar stream to file: %v", err)
 	}
-
+	bar.Finish()
 	return tarPath, nil
 }
 
@@ -115,14 +122,25 @@ func sftpUploadFile(sftpClient *sftp.Client, localPath, remotePath string) error
 	}
 	defer remoteFile.Close()
 
-	if _, err := io.Copy(remoteFile, localFile); err != nil {
+	// 获取文件大小
+	fileInfo, err := localFile.Stat()
+	if err != nil {
+		return fmt.Errorf("failed to stat local file %s: %v", localPath, err)
+	}
+	logger.Info("Importing file  to remote server...")
+	// 创建进度条
+	bar := pb.New64(fileInfo.Size()).Set(pb.Bytes, true).SetWidth(80)
+	bar.Start()
+	progressReader := &progressReader{Reader: localFile, bar: bar}
+
+	if _, err := io.Copy(remoteFile, progressReader); err != nil {
 		return fmt.Errorf("failed to upload file: %v", err)
 	}
-
+	bar.Finish()
 	return nil
 }
 
-// sshRunCommand
+// sshRunCommand 在远程服务器上执行 SSH 命令
 func sshRunCommand(sshClient *ssh.Client, cmd string) error {
 	session, err := sshClient.NewSession()
 	if err != nil {

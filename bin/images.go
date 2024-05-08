@@ -28,7 +28,7 @@ var exampleInit = `
 	containerMover images --src-type docker --dst-type containerd --image-list imagelist.txt
 
 	# docker migrate to  remote containerd
-	containerMover images --src-type docker --dst-type containerd  --hosts 192.168.1.2  --username root  --password 123456  A
+	containerMover images --src-type docker --dst-type containerd  --hosts 192.168.1.2, 192.168.1.3 --username root  --password 123456  A B
 `
 var migrateImagesCmd = &cobra.Command{
 	Use:   "images",
@@ -71,7 +71,6 @@ The source and destination types can be "docker", "containerd", etc.`,
 		errs := make(chan error, len(master.Hosts)*len(imageNames))
 		// 检查是否有远程主机地址提供
 		if len(master.Hosts) > 0 {
-
 			for _, host := range master.Hosts {
 				wg.Add(len(imageNames))
 				for _, imageName := range imageNames {
