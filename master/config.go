@@ -13,7 +13,7 @@ import (
 )
 
 type ContainerMoverConfig struct {
-	Nodes []string
+	Hosts []string
 	//SSHConfig
 	User       string
 	Passwd     string
@@ -22,8 +22,8 @@ type ContainerMoverConfig struct {
 }
 
 const (
-	ErrorExitOSCase = -1                    // 错误直接退出类型
-	ErrorNodesEmpty = "your Node is empty." // node节点ip为空
+	ErrorExitOSCase = -1                     // 错误直接退出类型
+	ErrorHostsEmpty = "your Hosts is empty." // node节点ip为空
 )
 
 var (
@@ -32,7 +32,10 @@ var (
 	DstType       string
 	Namespace     string
 	AllImages     bool
-	Nodes         []string
+	Hosts         []string
+	CertPath      string
+	Username      string
+	Password      string
 	SSHConfig     sshutil.SSH
 	message       string
 )
@@ -114,7 +117,7 @@ func (c *ContainerMoverConfig) Load(path string) (err error) {
 		return fmt.Errorf("unmarshal config file failed: %w", err)
 	}
 
-	Nodes = c.Nodes
+	Hosts = c.Hosts
 	SSHConfig.User = c.User
 	SSHConfig.Password = c.Passwd
 	SSHConfig.PkFile = c.PrivateKey
@@ -128,8 +131,8 @@ func (c *ContainerMoverConfig) Dump(path string) {
 	if path == "" {
 		path = home + defaultConfigPath + defaultConfigFile
 	}
-	Nodes = ParseIPs(Nodes)
-	c.Nodes = ParseIPs(Nodes)
+	Hosts = ParseIPs(Hosts)
+	c.Hosts = ParseIPs(Hosts)
 	c.User = SSHConfig.User
 	c.Passwd = SSHConfig.Password
 	c.PrivateKey = SSHConfig.PkFile
@@ -152,8 +155,8 @@ func (c *ContainerMoverConfig) Dump(path string) {
 
 func ExitInitCase() bool {
 	// 重大错误直接退出, 不保存配置文件
-	if len(Nodes) == 0 {
-		message = ErrorNodesEmpty
+	if len(Hosts) == 0 {
+		message = ErrorHostsEmpty
 	}
 	// 用户不写 --passwd, 默认走pk, 秘钥如果没有配置ssh互信, 则验证ssh的时候报错. 应该属于preRun里面
 	// first to auth password, second auth pk.
